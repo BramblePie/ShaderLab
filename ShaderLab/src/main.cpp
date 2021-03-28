@@ -12,38 +12,37 @@
 
 #include "Shapes.h"
 
-/*
-	uint hash(uint state)
-	{
-		state ^= 2747636419u;
-		state *= 2654435769u;
-		state ^= state >> 16;
-		state *= 2654435769u;
-		state ^= state >> 16;
-		state *= 2654435769u;
-		return state;
-	}
-*/
+constexpr int Width = 300;
+constexpr int Height = 200;
 
-GLFWwindow* InitWindow();
+struct Agent
+{
+	glm::vec2 position = glm::vec2(Width / 2.f, Height / 2.f);
+	float angle;
+	int id = 0;
+};
+
+GLFWwindow* InitWindow(int width, int height);
 
 int main()
 {
-	GLFWwindow* window = InitWindow();
+	const glm::ivec2 res = { Width, Height };
+	GLFWwindow* window = InitWindow(res.x * 4, res.y * 4);
 
-	Shader shader{ R"(src\shaders\shader.vert)", R"(src\shaders\shader.frag)" };
-	const GLuint count = 6;
-	auto vertices = Circle::GetShape<count, glm::vec2>(.5f);
-
-	std::array<glm::vec3, count> colors =
-	{
-		glm::vec3{ 1.0f, 0.0f, 0.0f },
-		glm::vec3{ 0.0f, 1.0f, 0.0f },
-		glm::vec3{ 0.0f, 0.0f, 1.0f },
-		glm::vec3{ 1.0f, 0.0f, 0.0f },
-		glm::vec3{ 0.0f, 1.0f, 0.0f },
-		glm::vec3{ 0.0f, 0.0f, 1.0f }
-	};
+	//Shader shader{ R"(src\shaders\shader.vert)", R"(src\shaders\shader.frag)" };
+	//const GLuint count = 6;
+	//auto vertices = Circle::GetShape<count, glm::vec2>(.5f);
+	//std::array<glm::vec3, count> colors =
+	//{
+	//	glm::vec3{ 1.0f, 0.0f, 0.0f },
+	//	glm::vec3{ 0.0f, 1.0f, 0.0f },
+	//	glm::vec3{ 0.0f, 0.0f, 1.0f },
+	//	glm::vec3{ 1.0f, 0.0f, 0.0f },
+	//	glm::vec3{ 0.0f, 1.0f, 0.0f },
+	//	glm::vec3{ 0.0f, 0.0f, 1.0f }
+	//};
+	//auto circle = Circle::InitializeShape(vertices, 0);
+	//circle.AppendBuffer(colors, 1);
 
 	const std::array quad = {
 		glm::vec2{ -1.0f, -1.0f },
@@ -52,35 +51,37 @@ int main()
 		glm::vec2{ 1.0f, 1.0f }
 	};
 
-	auto circle = Circle::InitializeShape(vertices, 0);
-	circle.AppendBuffer(colors, 1);
-
-	Shader example{ R"(src\shaders\example.vert)", R"(src\shaders\example.frag)" };
-	example.use();
+	Shader quadShader{ R"(src\shaders\quad.vert)", R"(src\shaders\example.frag)" };
+	quadShader.use();
 	Circle::InitializeShape(quad, 0);
 	glUniform1i(0, 0);
 
-	Shader compute{ R"(src\shaders\shader.comp)" };
+	Shader compute{ R"(src\shaders\LagueSlime.comp)" };
 	compute.use();
+
+	// Initialize agents
+	const size_t num_agents = 32;
+	Agent agents[num_agents];
+	for (size_t i = 0; i < num_agents; i++)
+		agents[i].angle = glm::two_pi<float>() * static_cast<float>(rand()) / RAND_MAX;
+
+	GLuint ssbo;
+	glGenBuffers(1, &ssbo);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(agents), &agents[0], GL_DYNAMIC_COPY);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
+
 	GLuint texHandle, texUnit = 0;
 	glGenTextures(1, &texHandle);
-
 	glBindTexture(GL_TEXTURE_2D, texHandle);
 	glActiveTexture(GL_TEXTURE0 + texUnit);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	const GLsizei res = 512;
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, res, res, 0, GL_RGBA, GL_FLOAT, NULL);
-
-	// Because we're also using this tex as an image (in order to write to it),
-	// we bind it to an image unit as well
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, res.x, res.y, 0, GL_RGBA, GL_FLOAT, NULL);
 	glBindImageTexture(texUnit, texHandle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-
-	// Set uniform destTex
 	glUniform1i(0, texUnit);
 
-	shader.use();
-
+	GLuint seed = 0;
 	double time = glfwGetTime();
 	double prevTime = time;
 	float delta = .0f;
@@ -97,17 +98,15 @@ int main()
 #endif
 
 		compute.use();
-		// Set uniform roll
-		glUniform1f(1, .01f);
-		glDispatchCompute(res / 32, res / 32, 1);
+		glUniform1ui(1, ++seed);	// Keep changing randoms
+		glUniform1f(2, delta);
+		glDispatchCompute(1, 1, 1);
 
 		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		example.use();
+		quadShader.use();
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-		//shader.use();
-		//Circle::DrawShape(circle);
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
@@ -123,18 +122,18 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void APIENTRY glDebugOutput(GLenum source, GLenum type, GLuint id, GLenum severity,
 							GLsizei length, const GLchar* message, const void* userParam);
 
-GLFWwindow* InitWindow()
+GLFWwindow* InitWindow(int width, int height)
 {
 	if (!glfwInit())
 		return 0;
 
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 
-	GLFWwindow* window = glfwCreateWindow(640, 480, "ShaderLab", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(width, height, "ShaderLab", NULL, NULL);
 	if (!window)
 	{
 		glfwTerminate();
@@ -152,7 +151,7 @@ GLFWwindow* InitWindow()
 		printf("Error: %s\n", glewGetErrorString(init));
 	}
 
-	glViewport(0, 0, 640, 480);
+	glViewport(0, 0, width, height);
 
 	GLint major, minor;
 	glGetIntegerv(GL_MAJOR_VERSION, &major);

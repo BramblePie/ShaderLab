@@ -38,7 +38,8 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="src\shaders\shader.comp" />
-    <None Include="src\shaders\example.vert" />
+    <None Include="src\shaders\quad.vert" />
     <None Include="src\shaders\example.frag" />
+    <None Include="src\shaders\LagueSlime.comp" />
   </ItemGroup>
 </Project>

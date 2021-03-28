@@ -1,18 +1,31 @@
 #version 430
 
 layout (location = 0) uniform writeonly image2D destTex;
-layout (location = 1) uniform float roll;
+layout (location = 1) uniform uint seed;
 
 layout (local_size_x = 32, local_size_y = 32) in;
 
+uint hash(uint state);
+
 void main() 
 {
-	ivec2 storePos = ivec2(gl_GlobalInvocationID.xy);
+	const ivec2 imgSize = imageSize(destTex);
+	ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
 
-	float localCoef = length(vec2(ivec2(gl_LocalInvocationID.xy) - 8) / 8.0);
+	const uint width = gl_WorkGroupSize.x * gl_NumWorkGroups.x;
+	const uint globalIndex = gl_GlobalInvocationID.y * width + gl_GlobalInvocationID.x;
+	const vec3 clr = vec3(float(hash(globalIndex)) / 4294867295.0);
+	imageStore(destTex, pos, vec4(clr, 1.));
+}
 
-	// float globalCoef = sin(float(gl_WorkGroupID.x + gl_WorkGroupID.y) * 0.1 + roll) * 0.5;
-	const float globalCoef = gl_WorkGroupID.x % 2 == 0 && gl_WorkGroupID.y % 2 == 0 ? 1. : gl_WorkGroupID.x % 2 == 1 && gl_WorkGroupID.y % 2 == 1 ? 1. : .0;
-	const vec3 clr = vec3(globalCoef);
-	imageStore(destTex, storePos, vec4(clr, 1.));
+uint hash(uint state)
+{
+	state *= seed;
+	state ^= 2747636419u;
+	state *= 2654435769u;
+	state ^= state >> 16;
+	state *= 2654435769u;
+	state ^= state >> 16;
+	state *= 2654435769u;
+	return state;
 }

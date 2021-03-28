@@ -8,6 +8,5 @@ out vec4 color;
 
 void main()
 {
-	//const vec3 c = texture(srcTex, texCoord);
 	color = vec4(texture(srcTex, texCoord));
 }
