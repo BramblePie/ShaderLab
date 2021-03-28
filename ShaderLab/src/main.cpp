@@ -51,13 +51,21 @@ int main()
 		glm::vec2{ 1.0f, 1.0f }
 	};
 
-	Shader quadShader{ R"(src\shaders\quad.vert)", R"(src\shaders\example.frag)" };
+	// Simple quad drawing shader
+	Shader quadShader{ R"(src\shaders\quad.vert)", R"(src\shaders\drawTex.frag)" };
 	quadShader.use();
 	Circle::InitializeShape(quad, 0);
-	glUniform1i(0, 0);
+	glUniform1i(0, 0);	// Texture unit 0
+
+	//Shader postShader{ R"(src\shaders\quad.vert)", R"(src\shaders\fade.frag)" };
+	//postShader.use();
+	//Circle::InitializeShape(quad, 0);
+	//glUniform1i(0, 0);	// Texture unit 0
+	//glUniform1i(1, 1);	// Texture unit 1
 
 	Shader compute{ R"(src\shaders\LagueSlime.comp)" };
 	compute.use();
+	glUniform1i(0, 0);	// Texture unit 0
 
 	// Initialize agents
 	const size_t num_agents = 32;
@@ -65,26 +73,30 @@ int main()
 	for (size_t i = 0; i < num_agents; i++)
 		agents[i].angle = glm::two_pi<float>() * static_cast<float>(rand()) / RAND_MAX;
 
+	// Send agents to gpu
 	GLuint ssbo;
 	glGenBuffers(1, &ssbo);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(agents), &agents[0], GL_DYNAMIC_COPY);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
 
-	GLuint texHandle, texUnit = 0;
-	glGenTextures(1, &texHandle);
-	glBindTexture(GL_TEXTURE_2D, texHandle);
-	glActiveTexture(GL_TEXTURE0 + texUnit);
+	// Create texture for the agents to write to
+	GLuint mapTex;
+	glGenTextures(1, &mapTex);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, mapTex);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, res.x, res.y, 0, GL_RGBA, GL_FLOAT, NULL);
-	glBindImageTexture(texUnit, texHandle, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA32F);
-	glUniform1i(0, texUnit);
+	glBindImageTexture(0, mapTex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
 
 	GLuint seed = 0;
 	double time = glfwGetTime();
 	double prevTime = time;
 	float delta = .0f;
+	glUniform1f(2, delta);
 	while (!glfwWindowShouldClose(window))
 	{
 		// Timing
@@ -97,20 +109,25 @@ int main()
 		glfwSetWindowTitle(window, title);
 #endif
 
+		// Process agents
 		compute.use();
 		glUniform1ui(1, ++seed);	// Keep changing randoms
 		glUniform1f(2, delta);
 		glDispatchCompute(1, 1, 1);
 
-		glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+		glClearColor(.0f, .0f, .0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
+		// Draw quad
 		quadShader.use();
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
+
+	glDeleteBuffers(1, &ssbo);
+	glDeleteTextures(1, &mapTex);
 
 	glfwTerminate();
 	//system("pause");
@@ -152,6 +169,9 @@ GLFWwindow* InitWindow(int width, int height)
 	}
 
 	glViewport(0, 0, width, height);
+	glDisable(GL_DEPTH_TEST);
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_STENCIL_TEST);
 
 	GLint major, minor;
 	glGetIntegerv(GL_MAJOR_VERSION, &major);

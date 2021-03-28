@@ -168,7 +168,8 @@
     <ClInclude Include="src\Shapes.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\shaders\example.frag" />
+    <None Include="src\shaders\drawTex.frag" />
+    <None Include="src\shaders\fade.frag" />
     <None Include="src\shaders\quad.vert" />
     <None Include="src\shaders\LagueSlime.comp" />
     <None Include="src\shaders\shader.comp" />
