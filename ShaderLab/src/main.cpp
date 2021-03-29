@@ -26,8 +26,8 @@ GLFWwindow* InitWindow(int width, int height);
 
 int main()
 {
-	const glm::ivec2 res = { Width, Height };
-	GLFWwindow* window = InitWindow(res.x * 4, res.y * 4);
+	//const glm::ivec2 res = { Width, Height };
+	GLFWwindow* window = InitWindow(Width * 4, Height * 4);
 
 	//Shader shader{ R"(src\shaders\shader.vert)", R"(src\shaders\shader.frag)" };
 	//const GLuint count = 6;
@@ -55,7 +55,8 @@ int main()
 	Shader quadShader{ R"(src\shaders\quad.vert)", R"(src\shaders\drawTex.frag)" };
 	quadShader.use();
 	Circle::InitializeShape(quad, 0);
-	glUniform1i(0, 0);	// Texture unit 0
+	//glUniform1i(0, 0);	// Texture unit 0
+	glUniform1i(1, 1);	// Texture unit 1
 
 	//Shader postShader{ R"(src\shaders\quad.vert)", R"(src\shaders\fade.frag)" };
 	//postShader.use();
@@ -66,6 +67,11 @@ int main()
 	Shader compute{ R"(src\shaders\LagueSlime.comp)" };
 	compute.use();
 	glUniform1i(0, 0);	// Texture unit 0
+
+	Shader fadeShader{ R"(src\shaders\fade.comp)" };
+	fadeShader.use();
+	glUniform1i(0, 0);	// Texture unit 0
+	//glUniform1i(1, 1);	// Texture unit 1
 
 	// Initialize agents
 	const size_t num_agents = 32;
@@ -81,16 +87,31 @@ int main()
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
 
 	// Create texture for the agents to write to
-	GLuint mapTex;
-	glGenTextures(1, &mapTex);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, mapTex);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, res.x, res.y, 0, GL_RGBA, GL_FLOAT, NULL);
-	glBindImageTexture(0, mapTex, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+	GLuint mapTex[2];
+	glGenTextures(2, mapTex);
+	for (size_t i = 0; i < 2; i++)
+	{
+		glActiveTexture(GL_TEXTURE0 + i);
+		glBindTexture(GL_TEXTURE_2D, mapTex[i]);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, Width, Height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, Width, Height, 0, GL_RGBA, GL_FLOAT, NULL);
+		glBindImageTexture(i, mapTex[i], 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+	}
+
+	// Make framebuffer
+	GLuint fbo;
+	glGenFramebuffers(1, &fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+	glBindTexture(GL_TEXTURE_2D, mapTex[0]);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mapTex[0], 0);
+	glViewport(0, 0, Width * 4, Height * 4);
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+		std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	GLuint seed = 0;
 	double time = glfwGetTime();
@@ -115,10 +136,23 @@ int main()
 		glUniform1f(2, delta);
 		glDispatchCompute(1, 1, 1);
 
-		glClearColor(.0f, .0f, .0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
+		fadeShader.use();
+		glUniform1f(2, delta);
+		glDispatchCompute(glm::ceil(Width / 16.0f), glm::ceil(Height / 16.0f), 1);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		//glClearColor(.0f, .0f, .0f, 1.0f);
+		//glClear(GL_COLOR_BUFFER_BIT);
 
 		// Draw quad
+		quadShader.use();
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+		// Draw post map to map
+		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+		//glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+		//glClear(GL_COLOR_BUFFER_BIT);
+
 		quadShader.use();
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -127,7 +161,7 @@ int main()
 	}
 
 	glDeleteBuffers(1, &ssbo);
-	glDeleteTextures(1, &mapTex);
+	glDeleteTextures(2, mapTex);
 
 	glfwTerminate();
 	//system("pause");
