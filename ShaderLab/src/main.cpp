@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 
 #include <glm/glm.hpp>
+#include <glm/gtc/random.hpp>
 
 // Show delta time in window title
 #define DELTA_TITLE
@@ -12,21 +13,22 @@
 
 #include "Shapes.h"
 
-constexpr int Width = 1920;
-constexpr int Height = 1080;
+constexpr int Width = 1440;
+constexpr int Height = 810;
 
 struct Agent
 {
 	glm::vec2 position = glm::vec2(Width / 2.f, Height / 2.f);
-	float angle;
-	int id = 0;
+	glm::vec2 direction;
+	//float angle;
+	//int id = 0;
 };
 
 struct Settings
 {
 	float speed;
 	float turnSpeed;
-	float sensorAngle;
+	float sensorOffset;
 	float sensorDistance;
 	int sensorSize;
 };
@@ -86,10 +88,10 @@ int main()
 
 	const Settings settings
 	{
-		50.0f,
-		glm::two_pi<float>() * 1.0f,
-		glm::half_pi<float>() * .6f,
-		16.0f,
+		40.0f,
+		glm::pi<float>() * 1.0f,
+		5.0f,
+		8.0f,
 		2
 	};
 	for (size_t i = 0; i < 4; i++)
@@ -97,11 +99,14 @@ int main()
 	glUniform1i(7, settings.sensorSize);
 
 	// Initialize agents
-	const size_t num_groups = 340;
+	const size_t num_groups = 200;
 	const size_t num_agents = num_groups * num_groups * 4 * 4;
 	Agent* agents = new Agent[num_agents]{};
 	for (size_t i = 0; i < num_agents; i++)
-		agents[i].angle = glm::two_pi<float>() * static_cast<float>(rand()) / RAND_MAX;
+	{
+		agents[i].position += glm::diskRand(Height / 2.0f);
+		agents[i].direction = -glm::normalize(agents[i].position - glm::vec2(Width / 2.0f, Height / 2.0f));
+	}
 
 	// Send agents to gpu
 	GLuint ssbo;
@@ -207,7 +212,7 @@ GLFWwindow* InitWindow(int width, int height)
 		glfwTerminate();
 		return 0;
 	}
-	glfwMaximizeWindow(window);
+	//glfwMaximizeWindow(window);
 
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(0);
