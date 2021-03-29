@@ -13,8 +13,9 @@
 
 #include "Shapes.h"
 
-constexpr int Width = 1440;
-constexpr int Height = 810;
+constexpr int Width = 1920;
+constexpr int Height = 1080;
+constexpr int Scale = 1;
 
 struct Agent
 {
@@ -38,7 +39,10 @@ GLFWwindow* InitWindow(int width, int height);
 int main()
 {
 	//const glm::ivec2 res = { Width, Height };
-	GLFWwindow* window = InitWindow(Width, Height);
+	GLFWwindow* window = InitWindow(Width * Scale, Height * Scale);
+
+	glClearColor(.0f, 0.0f, .0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
 
 	//Shader shader{ R"(src\shaders\shader.vert)", R"(src\shaders\shader.frag)" };
 	//const GLuint count = 6;
@@ -79,8 +83,8 @@ int main()
 	fadeShader.use();
 	glUniform1i(0, 0);	// Texture unit 0
 	glUniform1i(1, 1);	// Texture unit 1
-	glUniform1f(3, .3f);		// Fade strength
-	glUniform1f(4, 4.0f);		// Diffuse strength
+	glUniform1f(3, 0.5f);		// Fade strength
+	glUniform1f(4, 10.0f);		// Diffuse strength
 
 	Shader compute{ R"(src\shaders\LagueSlime.comp)" };
 	compute.use();
@@ -88,24 +92,25 @@ int main()
 
 	const Settings settings
 	{
-		40.0f,
-		glm::pi<float>() * 1.0f,
-		5.0f,
-		8.0f,
-		2
+		50.0f,
+		glm::pi<float>() * 2.0f,
+		16.0f,
+		24.0f,
+		3
 	};
 	for (size_t i = 0; i < 4; i++)
 		glUniform1fv(3 + i, 1, (GLfloat*)&settings + i);
 	glUniform1i(7, settings.sensorSize);
 
 	// Initialize agents
-	const size_t num_groups = 200;
+	const size_t num_groups = 240;
 	const size_t num_agents = num_groups * num_groups * 4 * 4;
 	Agent* agents = new Agent[num_agents]{};
 	for (size_t i = 0; i < num_agents; i++)
 	{
 		agents[i].position += glm::diskRand(Height / 2.0f);
 		agents[i].direction = -glm::normalize(agents[i].position - glm::vec2(Width / 2.0f, Height / 2.0f));
+		//agents[i].direction = glm::circularRand(1.0f);
 	}
 
 	// Send agents to gpu
@@ -144,16 +149,21 @@ int main()
 		time = glfwGetTime();
 		delta = static_cast<float>(time - prevTime);
 		prevTime = time;
+
+		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+			glfwSetWindowShouldClose(window, true);
+
 #ifdef DELTA_TITLE
 		char title[20];
 		std::snprintf(title, sizeof(title), "%f", delta);
 		glfwSetWindowTitle(window, title);
 #endif
-
+		const double stop = 2.0;
 		fadeShader.use();
 		glUniform1i(0, post);	// Set map unit
 		glUniform1i(1, map);	// Set post unit
 		glUniform1f(2, delta);
+		//if (time < stop)
 		glDispatchCompute(fadeGroups.x, fadeGroups.y, 1);
 
 		// Process agents
@@ -162,9 +172,10 @@ int main()
 		glUniform1ui(1, ++seed);	// Keep changing randoms
 		glUniform1f(2, delta);
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+		//if (time < stop)
 		glDispatchCompute(num_groups, num_groups, 1);
 
-		glClearColor(.0f, 1.0f, .0f, 1.0f);
+		glClearColor(.0f, 0.0f, .0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		// Draw quad
@@ -206,14 +217,19 @@ GLFWwindow* InitWindow(int width, int height)
 
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 
-	GLFWwindow* window = glfwCreateWindow(width, height, "ShaderLab", NULL, NULL);
+	GLFWwindow* window = glfwCreateWindow(width, height, "ShaderLab", 0, 0);
 	if (!window)
 	{
 		glfwTerminate();
 		return 0;
 	}
+
+	auto monitor = glfwGetPrimaryMonitor();
+	const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+	glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
 	//glfwMaximizeWindow(window);
 
+	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(0);
 
