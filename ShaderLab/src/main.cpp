@@ -22,6 +22,14 @@ struct Agent
 	int id = 0;
 };
 
+struct Settings
+{
+	float speed;
+	float turnSpeed;
+	float sensorAngle;
+	float sensorDistance;
+};
+
 GLFWwindow* InitWindow(int width, int height);
 
 int main()
@@ -64,14 +72,24 @@ int main()
 	//glUniform1i(0, 0);	// Texture unit 0
 	//glUniform1i(1, 1);	// Texture unit 1
 
-	Shader compute{ R"(src\shaders\LagueSlime.comp)" };
-	compute.use();
-	glUniform1i(0, 0);	// Texture unit 0
-
 	Shader fadeShader{ R"(src\shaders\fade.comp)" };
 	fadeShader.use();
 	glUniform1i(0, 0);	// Texture unit 0
 	glUniform1i(1, 1);	// Texture unit 1
+
+	Shader compute{ R"(src\shaders\LagueSlime.comp)" };
+	compute.use();
+	glUniform1i(0, 0);	// Texture unit 0
+
+	const Settings settings
+	{
+		80.0f,
+		glm::half_pi<float>(),
+		glm::half_pi<float>(),
+		2.0f,
+	};
+	for (size_t i = 0; i < 4; i++)
+		glUniform1fv(3 + i, 1, (GLfloat*)&settings + i);
 
 	// Initialize agents
 	const size_t num_agents = 64;
