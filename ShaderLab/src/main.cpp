@@ -97,7 +97,8 @@ int main()
 	glUniform1i(7, settings.sensorSize);
 
 	// Initialize agents
-	const size_t num_agents = 32 * 32 * 16 * 16;
+	const size_t num_groups = 340;
+	const size_t num_agents = num_groups * num_groups * 4 * 4;
 	Agent* agents = new Agent[num_agents]{};
 	for (size_t i = 0; i < num_agents; i++)
 		agents[i].angle = glm::two_pi<float>() * static_cast<float>(rand()) / RAND_MAX;
@@ -124,6 +125,8 @@ int main()
 		glBindImageTexture(i, mapTex[i], 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
 	}
 
+	const glm::uvec2 fadeGroups = { glm::ceil(Width / 4.0f), glm::ceil(Height / 4.0f) };
+
 	GLuint map = 0, post = 1;
 	GLuint seed = 0;
 	double time = glfwGetTime();
@@ -146,7 +149,7 @@ int main()
 		glUniform1i(0, post);	// Set map unit
 		glUniform1i(1, map);	// Set post unit
 		glUniform1f(2, delta);
-		glDispatchCompute(glm::ceil(Width / 16.0f), glm::ceil(Height / 16.0f), 1);
+		glDispatchCompute(fadeGroups.x, fadeGroups.y, 1);
 
 		// Process agents
 		compute.use();
@@ -154,7 +157,7 @@ int main()
 		glUniform1ui(1, ++seed);	// Keep changing randoms
 		glUniform1f(2, delta);
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-		glDispatchCompute(32, 32, 1);
+		glDispatchCompute(num_groups, num_groups, 1);
 
 		glClearColor(.0f, 1.0f, .0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);

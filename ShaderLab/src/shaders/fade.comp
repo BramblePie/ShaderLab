@@ -6,7 +6,7 @@ layout (location = 2) uniform float delta;
 layout (location = 3) uniform float fadeStr;
 layout (location = 4) uniform float diffuseStr;
 
-layout (local_size_x = 16, local_size_y = 16) in;
+layout (local_size_x = 4, local_size_y = 4) in;
 
 
 void main() 
