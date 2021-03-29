@@ -7,7 +7,9 @@
 #include <glm/gtc/random.hpp>
 
 // Show delta time in window title
+#ifdef _DEBUG
 #define DELTA_TITLE
+#endif // _DEBUG
 
 #include "Shader.h"
 
