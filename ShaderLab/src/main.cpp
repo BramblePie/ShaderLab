@@ -12,8 +12,8 @@
 
 #include "Shapes.h"
 
-constexpr int Width = 300;
-constexpr int Height = 200;
+constexpr int Width = 1920;
+constexpr int Height = 1080;
 
 struct Agent
 {
@@ -28,6 +28,7 @@ struct Settings
 	float turnSpeed;
 	float sensorAngle;
 	float sensorDistance;
+	int sensorSize;
 };
 
 GLFWwindow* InitWindow(int width, int height);
@@ -35,7 +36,7 @@ GLFWwindow* InitWindow(int width, int height);
 int main()
 {
 	//const glm::ivec2 res = { Width, Height };
-	GLFWwindow* window = InitWindow(Width * 4, Height * 4);
+	GLFWwindow* window = InitWindow(Width, Height);
 
 	//Shader shader{ R"(src\shaders\shader.vert)", R"(src\shaders\shader.frag)" };
 	//const GLuint count = 6;
@@ -76,6 +77,8 @@ int main()
 	fadeShader.use();
 	glUniform1i(0, 0);	// Texture unit 0
 	glUniform1i(1, 1);	// Texture unit 1
+	glUniform1f(3, .3f);		// Fade strength
+	glUniform1f(4, 4.0f);		// Diffuse strength
 
 	Shader compute{ R"(src\shaders\LagueSlime.comp)" };
 	compute.use();
@@ -83,17 +86,19 @@ int main()
 
 	const Settings settings
 	{
-		80.0f,
-		glm::half_pi<float>(),
-		glm::half_pi<float>(),
-		2.0f,
+		50.0f,
+		glm::two_pi<float>() * 1.0f,
+		glm::half_pi<float>() * .6f,
+		16.0f,
+		2
 	};
 	for (size_t i = 0; i < 4; i++)
 		glUniform1fv(3 + i, 1, (GLfloat*)&settings + i);
+	glUniform1i(7, settings.sensorSize);
 
 	// Initialize agents
-	const size_t num_agents = 64;
-	Agent agents[num_agents];
+	const size_t num_agents = 32 * 32 * 16 * 16;
+	Agent* agents = new Agent[num_agents]{};
 	for (size_t i = 0; i < num_agents; i++)
 		agents[i].angle = glm::two_pi<float>() * static_cast<float>(rand()) / RAND_MAX;
 
@@ -101,7 +106,7 @@ int main()
 	GLuint ssbo;
 	glGenBuffers(1, &ssbo);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(agents), &agents[0], GL_DYNAMIC_COPY);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Agent) * num_agents, &agents[0], GL_DYNAMIC_COPY);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo);
 
 	// Create texture for the agents to write to
@@ -120,7 +125,6 @@ int main()
 	}
 
 	GLuint map = 0, post = 1;
-
 	GLuint seed = 0;
 	double time = glfwGetTime();
 	double prevTime = time;
@@ -150,7 +154,7 @@ int main()
 		glUniform1ui(1, ++seed);	// Keep changing randoms
 		glUniform1f(2, delta);
 		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-		glDispatchCompute(1, 1, 1);
+		glDispatchCompute(32, 32, 1);
 
 		glClearColor(.0f, 1.0f, .0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -171,6 +175,7 @@ int main()
 
 	glDeleteBuffers(1, &ssbo);
 	glDeleteTextures(2, mapTex);
+	delete[] agents;
 
 	glfwTerminate();
 	//system("pause");
@@ -199,6 +204,7 @@ GLFWwindow* InitWindow(int width, int height)
 		glfwTerminate();
 		return 0;
 	}
+	glfwMaximizeWindow(window);
 
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(0);
