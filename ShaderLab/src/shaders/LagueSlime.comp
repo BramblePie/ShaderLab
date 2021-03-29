@@ -2,7 +2,7 @@
 
 #define PI 3.1415926535897932384626433832795
 
-layout (location = 0) uniform writeonly image2D map;
+layout (location = 0, rgba32f) uniform image2D map;
 layout (location = 1) uniform uint seed;
 layout (location = 2) uniform float delta;
 
@@ -21,7 +21,7 @@ layout(std430, binding = 0) buffer ssbo
 
 uint hash(uint state);
 
-layout (local_size_x = 32, local_size_y = 1) in;
+layout (local_size_x = 64, local_size_y = 1) in;
 
 void main() 
 {

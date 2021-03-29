@@ -55,7 +55,7 @@ int main()
 	Shader quadShader{ R"(src\shaders\quad.vert)", R"(src\shaders\drawTex.frag)" };
 	quadShader.use();
 	Circle::InitializeShape(quad, 0);
-	//glUniform1i(0, 0);	// Texture unit 0
+	glUniform1i(0, 0);	// Texture unit 0
 	glUniform1i(1, 1);	// Texture unit 1
 
 	//Shader postShader{ R"(src\shaders\quad.vert)", R"(src\shaders\fade.frag)" };
@@ -71,10 +71,10 @@ int main()
 	Shader fadeShader{ R"(src\shaders\fade.comp)" };
 	fadeShader.use();
 	glUniform1i(0, 0);	// Texture unit 0
-	//glUniform1i(1, 1);	// Texture unit 1
+	glUniform1i(1, 1);	// Texture unit 1
 
 	// Initialize agents
-	const size_t num_agents = 32;
+	const size_t num_agents = 64;
 	Agent agents[num_agents];
 	for (size_t i = 0; i < num_agents; i++)
 		agents[i].angle = glm::two_pi<float>() * static_cast<float>(rand()) / RAND_MAX;
@@ -97,21 +97,11 @@ int main()
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		//glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, Width, Height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, Width, Height, 0, GL_RGBA, GL_FLOAT, NULL);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, Width, Height, 0, GL_RGBA, GL_FLOAT, 0);
 		glBindImageTexture(i, mapTex[i], 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
 	}
 
-	// Make framebuffer
-	GLuint fbo;
-	glGenFramebuffers(1, &fbo);
-	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-	glBindTexture(GL_TEXTURE_2D, mapTex[0]);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, mapTex[0], 0);
-	glViewport(0, 0, Width * 4, Height * 4);
-	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-		std::cout << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	GLuint map = 0, post = 1;
 
 	GLuint seed = 0;
 	double time = glfwGetTime();
@@ -130,31 +120,32 @@ int main()
 		glfwSetWindowTitle(window, title);
 #endif
 
-		// Process agents
-		compute.use();
-		glUniform1ui(1, ++seed);	// Keep changing randoms
-		glUniform1f(2, delta);
-		glDispatchCompute(1, 1, 1);
-
 		fadeShader.use();
+		glUniform1i(0, post);	// Set map unit
+		glUniform1i(1, map);	// Set post unit
 		glUniform1f(2, delta);
 		glDispatchCompute(glm::ceil(Width / 16.0f), glm::ceil(Height / 16.0f), 1);
 
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		//glClearColor(.0f, .0f, .0f, 1.0f);
-		//glClear(GL_COLOR_BUFFER_BIT);
+		// Process agents
+		compute.use();
+		glUniform1i(0, map);	// Set map unit
+		glUniform1ui(1, ++seed);	// Keep changing randoms
+		glUniform1f(2, delta);
+		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+		glDispatchCompute(1, 1, 1);
+
+		glClearColor(.0f, 1.0f, .0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
 
 		// Draw quad
 		quadShader.use();
+		glUniform1i(1, post);	// Set post unit
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-		// Draw post map to map
-		glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-		//glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-		//glClear(GL_COLOR_BUFFER_BIT);
-
-		quadShader.use();
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		// Swap texture unit uniforms
+		const GLuint tmp = map;
+		map = post;
+		post = tmp;
 
 		glfwSwapBuffers(window);
 		glfwPollEvents();
