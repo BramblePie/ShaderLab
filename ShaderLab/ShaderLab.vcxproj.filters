@@ -43,5 +43,6 @@
     <None Include="src\shaders\LagueSlime.comp" />
     <None Include="src\shaders\fade.frag" />
     <None Include="src\shaders\fade.comp" />
+    <None Include="src\shaders\LagueSlimeVec.comp" />
   </ItemGroup>
 </Project>

@@ -8,16 +8,14 @@ layout (location = 2) uniform float delta;
 
 layout (location = 3) uniform float speed;
 layout (location = 4) uniform float turnSpeed;
-layout (location = 5) uniform float sensorAngle;
+layout (location = 5) uniform float sensorOffset;
 layout (location = 6) uniform float sensorDistance;
 layout (location = 7) uniform int sensorSize;
 
 struct Agent
 {
 	vec2 position;
-	float angle;
-	int id;
-	//vec2 direction;
+	vec2 direction;
 };
 
 layout(std430, binding = 0) buffer ssbo
@@ -27,7 +25,7 @@ layout(std430, binding = 0) buffer ssbo
 
 uint hash(uint state);
 float random(uint state);
-float sense(const Agent agent, float angleOff);
+float sense(const Agent agent, const vec2 sensor);
 
 layout (local_size_x = 4, local_size_y = 4) in;
 
@@ -36,53 +34,49 @@ const uint id = gl_GlobalInvocationID.y * (gl_NumWorkGroups.x * gl_WorkGroupSize
 
 void main() 
 {
+
 	const Agent agent = agents[id];
 	const uint uniqueState = uint(agent.position.y * imgSize.x + agent.position.x) + hash(id);
-
+	const vec3 Z = vec3(.0, .0, 1.0);
 	// Turn weights
-	const float wForward = sense(agent, 0.0);
-	const float wLeft = sense(agent, sensorAngle);
-	const float wRight = sense(agent, -sensorAngle);
-	const float rng = random(uniqueState);
-	float turnStr = rng * turnSpeed * delta;
+	const float wForward = sense(agent, vec2(0.0));
+	const vec2 left = cross(Z, vec3(agent.direction, .0)).xy;
+	const float wLeft = sense(agent, left * sensorOffset);
+	const float wRight = sense(agent, left * -sensorOffset);
+
+	float turnStr = (random(uniqueState) * 2.0 - 1.0) * turnSpeed;
 
 	if (wForward > wLeft && wForward > wRight)
 	{	// Stay oncourse
-		agents[id].angle += 0.0;
+		turnStr = 0.0;
 	}
-	else if (wRight - wLeft > .01)
+	else if (wRight - wLeft > .1)
 	{	// Go right
-		agents[id].angle -= turnStr;
+		turnStr = -abs(turnStr);
 	}
-	else if (wLeft - wRight > .01)
+	else if (wLeft - wRight > .1)
 	{	// Go left
-		agents[id].angle += turnStr;
+		turnStr = abs(turnStr);
 	}
-	else
-	{	// Go in random direction
-		agents[id].angle += 2 * turnStr - turnSpeed * delta;
-	}
-
-	// Get new direction
-	vec2 direction = vec2(cos(agents[id].angle), sin(agents[id].angle));
+	// Go to the left by turnStr random(-1, 1) amount
+	vec2 direction = normalize(agent.direction + left * turnStr * delta);
 	// Get new position
 	vec2 pos = agent.position + direction * delta * speed;
 
-	// Out of bounds, get new direction for next cycle
-	if (pos.x < 0.0 || pos.x >= imgSize.x || pos.y < 0.0 || pos.y >= imgSize.y)
-	{	// Set position back
-		pos = agent.position;
-		agents[id].angle = rng * 2 * PI;
-	}
+	// No random angle, just reflect
+	if (pos.x < 0.0 || pos.x >= imgSize.x)
+		direction.x *= -1.0;
+	if (pos.y < 0.0 || pos.y >= imgSize.y)
+		direction.y *= -1.0;
 
 	agents[id].position = pos;
+	agents[id].direction = direction;
 	imageStore(map, ivec2(pos), vec4(1.0));
 }
 
-float sense(const Agent agent, float angleOff)
+float sense(const Agent agent, const vec2 sensor)
 {
-	const vec2 sensorDir = vec2(cos(agent.angle + angleOff), sin(agent.angle + angleOff));
-	const ivec2 sensorPos = ivec2(agent.position + sensorDistance * sensorDir);
+	const ivec2 sensorPos = ivec2(agent.position + agent.direction * sensorDistance + sensor);
 
 	float weight = 0.0;
 	for (int i = -sensorSize; i <= sensorSize; i++)

@@ -5,6 +5,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/random.hpp>
+#include <glm/gtx/vector_angle.hpp>
 
 // Show delta time in window title
 #ifdef _DEBUG
@@ -15,16 +16,16 @@
 
 #include "Shapes.h"
 
-constexpr int Width = 1920;
-constexpr int Height = 1080;
 constexpr int Scale = 1;
+constexpr int Width = 1920 / Scale;
+constexpr int Height = 1080 / Scale;
 
 struct Agent
 {
 	glm::vec2 position = glm::vec2(Width / 2.f, Height / 2.f);
-	glm::vec2 direction;
-	//float angle;
-	//int id = 0;
+	//glm::vec2 direction;
+	float angle;
+	int id = 0;
 };
 
 struct Settings
@@ -85,8 +86,8 @@ int main()
 	fadeShader.use();
 	glUniform1i(0, 0);	// Texture unit 0
 	glUniform1i(1, 1);	// Texture unit 1
-	glUniform1f(3, 0.5f);		// Fade strength
-	glUniform1f(4, 10.0f);		// Diffuse strength
+	glUniform1f(3, 0.4f);		// Fade strength
+	glUniform1f(4, 4.0f);		// Diffuse strength
 
 	Shader compute{ R"(src\shaders\LagueSlime.comp)" };
 	compute.use();
@@ -94,10 +95,10 @@ int main()
 
 	const Settings settings
 	{
-		50.0f,
-		glm::pi<float>() * 2.0f,
-		16.0f,
-		24.0f,
+		20.0f,
+		glm::pi<float>() * 1.0f,
+		glm::pi<float>() / 4.0f,
+		20.0f,
 		3
 	};
 	for (size_t i = 0; i < 4; i++)
@@ -105,14 +106,15 @@ int main()
 	glUniform1i(7, settings.sensorSize);
 
 	// Initialize agents
-	const size_t num_groups = 240;
+	const size_t num_groups = 250;
 	const size_t num_agents = num_groups * num_groups * 4 * 4;
 	Agent* agents = new Agent[num_agents]{};
 	for (size_t i = 0; i < num_agents; i++)
 	{
-		agents[i].position += glm::diskRand(Height / 2.0f);
-		agents[i].direction = -glm::normalize(agents[i].position - glm::vec2(Width / 2.0f, Height / 2.0f));
-		//agents[i].direction = glm::circularRand(1.0f);
+		const auto rng = glm::diskRand(Height / 2.0f);
+		agents[i].position += rng;
+		//agents[i].direction = -glm::normalize(agents[i].position - glm::vec2(Width / 2.0f, Height / 2.0f));
+		agents[i].angle = glm::orientedAngle(glm::vec2(1.0f, 0.0f), -glm::normalize(rng));
 	}
 
 	// Send agents to gpu
