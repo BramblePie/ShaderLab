@@ -86,8 +86,8 @@ int main()
 	fadeShader.use();
 	glUniform1i(0, 0);	// Texture unit 0
 	glUniform1i(1, 1);	// Texture unit 1
-	glUniform1f(3, 0.4f);		// Fade strength
-	glUniform1f(4, 4.0f);		// Diffuse strength
+	glUniform1f(3, 0.3f);		// Fade strength
+	glUniform1f(4, 8.0f);		// Diffuse strength
 
 	Shader compute{ R"(src\shaders\LagueSlime.comp)" };
 	compute.use();
@@ -95,10 +95,10 @@ int main()
 
 	const Settings settings
 	{
-		20.0f,
-		glm::pi<float>() * 1.0f,
-		glm::pi<float>() / 4.0f,
-		20.0f,
+		40.0f,
+		glm::pi<float>() * 2.0f,
+		glm::pi<float>() / 4,
+		32.0f,
 		3
 	};
 	for (size_t i = 0; i < 4; i++)
@@ -113,7 +113,7 @@ int main()
 	{
 		const auto rng = glm::diskRand(Height / 2.0f);
 		agents[i].position += rng;
-		//agents[i].direction = -glm::normalize(agents[i].position - glm::vec2(Width / 2.0f, Height / 2.0f));
+		//agents[i].angle = 0.0;
 		agents[i].angle = glm::orientedAngle(glm::vec2(1.0f, 0.0f), -glm::normalize(rng));
 	}
 
@@ -135,8 +135,8 @@ int main()
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, Width, Height, 0, GL_RGBA, GL_FLOAT, 0);
-		glBindImageTexture(i, mapTex[i], 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA32F);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, Width, Height, 0, GL_RGBA, GL_FLOAT, 0);
+		glBindImageTexture(i, mapTex[i], 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA16F);
 	}
 
 	const glm::uvec2 fadeGroups = { glm::ceil(Width / 4.0f), glm::ceil(Height / 4.0f) };
@@ -157,17 +157,17 @@ int main()
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 			glfwSetWindowShouldClose(window, true);
 
-#ifdef DELTA_TITLE
+		//#ifdef DELTA_TITLE
 		char title[20];
 		std::snprintf(title, sizeof(title), "%f", delta);
 		glfwSetWindowTitle(window, title);
-#endif
+		//#endif
 		const double stop = 2.0;
 		fadeShader.use();
 		glUniform1i(0, post);	// Set map unit
 		glUniform1i(1, map);	// Set post unit
 		glUniform1f(2, delta);
-		//if (time < stop)
+
 		glDispatchCompute(fadeGroups.x, fadeGroups.y, 1);
 
 		// Process agents
@@ -175,8 +175,8 @@ int main()
 		glUniform1i(0, map);	// Set map unit
 		glUniform1ui(1, ++seed);	// Keep changing randoms
 		glUniform1f(2, delta);
-		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-		//if (time < stop)
+		//glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
 		glDispatchCompute(num_groups, num_groups, 1);
 
 		glClearColor(.0f, 0.0f, .0f, 1.0f);
@@ -219,6 +219,8 @@ GLFWwindow* InitWindow(int width, int height)
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
+	glfwWindowHint(GLFW_SAMPLES, 8);
+
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 
 	GLFWwindow* window = glfwCreateWindow(width, height, "ShaderLab", 0, 0);
@@ -230,7 +232,7 @@ GLFWwindow* InitWindow(int width, int height)
 
 	auto monitor = glfwGetPrimaryMonitor();
 	const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-	glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+	//glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
 	//glfwMaximizeWindow(window);
 
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
@@ -250,6 +252,8 @@ GLFWwindow* InitWindow(int width, int height)
 	glDisable(GL_CULL_FACE);
 	glDisable(GL_STENCIL_TEST);
 
+	glEnable(GL_MULTISAMPLE);
+
 	GLint major, minor;
 	glGetIntegerv(GL_MAJOR_VERSION, &major);
 	glGetIntegerv(GL_MINOR_VERSION, &minor);
@@ -266,7 +270,7 @@ GLFWwindow* InitWindow(int width, int height)
 		glDebugMessageCallback(glDebugOutput, nullptr);
 		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
 		printf("[INFO] OpenGL debug context available\n");
-	}
+}
 	else
 		printf("[WARNING] No OpenGL debug context\n");
 

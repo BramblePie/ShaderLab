@@ -2,7 +2,7 @@
 
 #define PI 3.1415926535897932384626433832795
 
-layout (location = 0, rgba32f) uniform image2D map;
+layout (location = 0, rgba16f) uniform image2D map;
 layout (location = 1) uniform uint seed;
 layout (location = 2) uniform float delta;
 
@@ -77,6 +77,8 @@ void main()
 
 	agents[id].position = pos;
 	imageStore(map, ivec2(pos), vec4(1.0));
+	imageStore(map, ivec2(pos - direction), vec4(1.0));
+	imageStore(map, ivec2(pos - direction * 2), vec4(1.0));
 }
 
 float sense(const Agent agent, float angleOff)
