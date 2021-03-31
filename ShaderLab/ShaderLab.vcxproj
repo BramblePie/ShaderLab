@@ -171,6 +171,7 @@
     <None Include="src\shaders\drawTex.frag" />
     <None Include="src\shaders\fade.comp" />
     <None Include="src\shaders\fade.frag" />
+    <None Include="src\shaders\LagueSlime1.comp" />
     <None Include="src\shaders\LagueSlimeVec.comp" />
     <None Include="src\shaders\quad.vert" />
     <None Include="src\shaders\LagueSlime.comp" />

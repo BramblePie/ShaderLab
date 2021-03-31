@@ -32,12 +32,14 @@ struct Settings
 {
 	float speed;
 	float turnSpeed;
-	float sensorOffset;
+	float sensorAngle;
 	float sensorDistance;
 	int sensorSize;
 };
 
 GLFWwindow* InitWindow(int width, int height);
+
+bool processInput(GLFWwindow* window);
 
 int main()
 {
@@ -86,35 +88,37 @@ int main()
 	fadeShader.use();
 	glUniform1i(0, 0);	// Texture unit 0
 	glUniform1i(1, 1);	// Texture unit 1
-	glUniform1f(3, 0.3f);		// Fade strength
+	glUniform1f(3, 0.8f);		// Fade strength
 	glUniform1f(4, 8.0f);		// Diffuse strength
 
 	Shader compute{ R"(src\shaders\LagueSlime.comp)" };
 	compute.use();
 	glUniform1i(0, 0);	// Texture unit 0
 
-	const Settings settings
+	Settings settings
 	{
 		40.0f,
-		glm::pi<float>() * 2.0f,
-		glm::pi<float>() / 4,
-		32.0f,
+		glm::pi<float>() * 2.0f,	// Turn speed: lower for understeer, higher srinking cells
+		glm::pi<float>() / 6.0f,	// Sensor angle: wider more stable, thin chaotic and grows
+		32.0f,						// Sensor distance: ?Thickness of strands
 		3
 	};
 	for (size_t i = 0; i < 4; i++)
 		glUniform1fv(3 + i, 1, (GLfloat*)&settings + i);
 	glUniform1i(7, settings.sensorSize);
-
+	const auto t = (glm::pi<float>() / 16.0f);
 	// Initialize agents
-	const size_t num_groups = 250;
+	const size_t num_groups = 310;
 	const size_t num_agents = num_groups * num_groups * 4 * 4;
 	Agent* agents = new Agent[num_agents]{};
 	for (size_t i = 0; i < num_agents; i++)
 	{
 		const auto rng = glm::diskRand(Height / 2.0f);
+		//const auto pos = glm::vec2(glm::linearRand(0.0f, Width + 8.0f), glm::linearRand(0.0f, Height + 4.0f));
 		agents[i].position += rng;
-		//agents[i].angle = 0.0;
-		agents[i].angle = glm::orientedAngle(glm::vec2(1.0f, 0.0f), -glm::normalize(rng));
+		//agents[i].angle = glm::pi<float>() * 0.5f;
+		const auto n = glm::normalize(rng);
+		agents[i].angle = glm::orientedAngle(glm::vec2(1.0f, 0.0f), n);
 	}
 
 	// Send agents to gpu
@@ -147,6 +151,7 @@ int main()
 	double prevTime = time;
 	float delta = .0f;
 	glUniform1f(2, delta);
+	bool go = false;
 	while (!glfwWindowShouldClose(window))
 	{
 		// Timing
@@ -154,20 +159,64 @@ int main()
 		delta = static_cast<float>(time - prevTime);
 		prevTime = time;
 
+#pragma region Inputs
+
 		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 			glfwSetWindowShouldClose(window, true);
 
-		//#ifdef DELTA_TITLE
+		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+			go = true;
+		if (!go)
+		{
+			glClearColor(.0f, 0.0f, .0f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT);
+			glfwSwapBuffers(window);
+			glfwPollEvents();
+			continue;
+		}
+
+		if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS)
+			settings.speed = 50.0f;
+		else if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+			settings.speed += 2.0f;
+		else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+			settings.speed -= 2.0f;
+
+		if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS)
+			settings.sensorDistance = 40.0f;
+		else if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+			settings.sensorDistance += 2.0f;
+		else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+			settings.sensorDistance -= 2.0f;
+
+		if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS)
+			settings.turnSpeed = glm::two_pi<float>();
+		else if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+			settings.turnSpeed += glm::quarter_pi<float>();
+		else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+			settings.turnSpeed -= glm::quarter_pi<float>();
+
+		if (glfwGetKey(window, GLFW_KEY_V) == GLFW_PRESS)
+			settings.sensorAngle = glm::pi<float>() / 4.0f;
+		else if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
+			settings.sensorAngle += (glm::pi<float>() / 32.0f);
+		else if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
+			settings.sensorAngle -= (glm::pi<float>() / 32.0f);
+
+#pragma endregion
+
+#ifdef DELTA_TITLE
 		char title[20];
 		std::snprintf(title, sizeof(title), "%f", delta);
 		glfwSetWindowTitle(window, title);
-		//#endif
+#endif
 		const double stop = 2.0;
 		fadeShader.use();
 		glUniform1i(0, post);	// Set map unit
 		glUniform1i(1, map);	// Set post unit
 		glUniform1f(2, delta);
 
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 		glDispatchCompute(fadeGroups.x, fadeGroups.y, 1);
 
 		// Process agents
@@ -175,7 +224,10 @@ int main()
 		glUniform1i(0, map);	// Set map unit
 		glUniform1ui(1, ++seed);	// Keep changing randoms
 		glUniform1f(2, delta);
-		//glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+		for (size_t i = 0; i < 4; i++)		// Set settings
+			glUniform1fv(3 + i, 1, (GLfloat*)&settings + i);
+		//glUniform1i(7, settings.sensorSize);
+		glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
 		glDispatchCompute(num_groups, num_groups, 1);
 
@@ -210,6 +262,15 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void APIENTRY glDebugOutput(GLenum source, GLenum type, GLuint id, GLenum severity,
 							GLsizei length, const GLchar* message, const void* userParam);
 
+bool processInput(GLFWwindow* window)
+{
+	bool gotInput = false;
+	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+		glfwSetWindowShouldClose(window, true);
+
+	return gotInput;
+}
+
 GLFWwindow* InitWindow(int width, int height)
 {
 	if (!glfwInit())
@@ -219,7 +280,7 @@ GLFWwindow* InitWindow(int width, int height)
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	glfwWindowHint(GLFW_SAMPLES, 8);
+	glfwWindowHint(GLFW_SAMPLES, 4);
 
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GLFW_TRUE);
 
@@ -232,7 +293,7 @@ GLFWwindow* InitWindow(int width, int height)
 
 	auto monitor = glfwGetPrimaryMonitor();
 	const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-	//glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
+	glfwSetWindowMonitor(window, monitor, 0, 0, mode->width, mode->height, mode->refreshRate);
 	//glfwMaximizeWindow(window);
 
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
@@ -270,7 +331,7 @@ GLFWwindow* InitWindow(int width, int height)
 		glDebugMessageCallback(glDebugOutput, nullptr);
 		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
 		printf("[INFO] OpenGL debug context available\n");
-}
+	}
 	else
 		printf("[WARNING] No OpenGL debug context\n");
 

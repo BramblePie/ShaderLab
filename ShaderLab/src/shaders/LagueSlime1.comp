@@ -46,52 +46,39 @@ void main()
 	const float rng = random(uniqueState);
 	float turnStr = rng * turnSpeed * delta;
 
-	const float least = .01;		// Minimum threshold
-	if(wForward + wRight + wLeft > least * sensorSize * sensorSize)
-	{
-		if (wForward > wLeft && wForward > wRight)
-		{	// Stay oncourse
-			agents[id].angle += 0.0;
-		}
-		else if (wRight > wLeft )
-		{	// Go right
-			agents[id].angle -= turnStr;
-		}
-		else if (wLeft > wRight)
-		{	// Go left
-			agents[id].angle += turnStr;
-		}
+	if (wForward > wLeft && wForward > wRight)
+	{	// Stay oncourse
+		agents[id].angle += 0.0;
 	}
-	else
-	{	// Turn in random direction
-		agents[id].angle += (rng - 0.5) * 2 * delta * turnSpeed;
+	else if (wRight + wLeft + wForward < 0.06)	// Minimal sensitivity
+	{	// Go in random direction
+		agents[id].angle += 2 * turnStr - turnSpeed * delta;
+	}
+	else if (wRight - wLeft > .01)
+	{	// Go right
+		agents[id].angle -= turnStr;
+	}
+	else if (wLeft - wRight > .01)
+	{	// Go left
+		agents[id].angle += turnStr;
 	}
 
 	// Get new direction
 	vec2 direction = vec2(cos(agents[id].angle), sin(agents[id].angle));
 	// Get new position
 	vec2 pos = agent.position + direction * delta * speed;
-	
-	// Out of bounds?
-	if (pos.x < 0.0)
-		pos.x += imgSize.x;
-	else if (pos.x > imgSize.x - 1)
-		pos.x -= imgSize.x;
-	if (pos.y < 0.0)
-		pos.y += imgSize.y;
-	else if (pos.y > imgSize.y - 1)
-		pos.y -= imgSize.y;
 
-	//if (pos.x < 0.0 || pos.x >= imgSize.x || pos.y < 0.0 || pos.y >= imgSize.y)
-	//{	// Set position back
-	//	pos = agent.position;
-	//	agents[id].angle = rng * 2 * PI;
-	//}
+	// Out of bounds, get new direction for next cycle
+	if (pos.x < 0.0 || pos.x >= imgSize.x || pos.y < 0.0 || pos.y >= imgSize.y)
+	{	// Set position back
+		pos = agent.position;
+		agents[id].angle = rng * 2 * PI;
+	}
 
 	agents[id].position = pos;
 	imageStore(map, ivec2(pos), vec4(1.0));
-	//imageStore(map, ivec2(pos - direction), vec4(1.0));
-	//imageStore(map, ivec2(pos - direction * 2), vec4(1.0));
+	imageStore(map, ivec2(pos - direction), vec4(1.0));
+	imageStore(map, ivec2(pos - direction * 2), vec4(1.0));
 }
 
 float sense(const Agent agent, float angleOff)
@@ -104,22 +91,12 @@ float sense(const Agent agent, float angleOff)
 	{
 		for (int j = -sensorSize; j <= sensorSize; j++)
 		{
-			ivec2 ij = sensorPos + ivec2(i, j);
-
-			if (ij.x < 0.0)
-				ij.x += imgSize.x;
-			else if (ij.x >= imgSize.x)
-				ij.x -= imgSize.x;
-			if (ij.y < 0.0)
-				ij.y += imgSize.y;
-			else if (ij.y >= imgSize.y)
-				ij.y -= imgSize.y;
-
-			const vec4 clr = imageLoad(map, ij);
-			weight += (clr.r + clr.g + clr.b + clr.a) / 4.0;
-			//if (ij.x >= 0 || ij.x < imgSize.x || ij.y >= 0 || ij.y < imgSize.y)
-			//{
-			//}
+			const ivec2 ij = sensorPos + ivec2(i, j);
+			if (ij.x >= 0 || ij.x < imgSize.x || ij.y >= 0 || ij.y < imgSize.y)
+			{
+				const vec4 clr = imageLoad(map, ij);
+				weight += (clr.r + clr.g + clr.b + clr.a) / 4.0;
+			}
 		}
 	}
 	return weight;
