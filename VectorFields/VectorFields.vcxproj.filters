@@ -19,4 +19,13 @@
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\quad.vert" />
+    <None Include="shaders\quad.frag" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\VertexInitializer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
 </Project>

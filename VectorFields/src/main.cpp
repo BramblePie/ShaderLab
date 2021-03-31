@@ -1,4 +1,5 @@
 #include <iostream>
+#include <array>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -12,6 +13,15 @@ GLFWwindow* InitWindow(int width, int height);
 int main()
 {
 	GLFWwindow* window = InitWindow(800, 600);
+
+	// Quad texturing shader
+	const std::array quad = {
+		glm::vec2{ -1.0f, -1.0f },
+		glm::vec2{ -1.0f, 1.0f },
+		glm::vec2{ 1.0f, -1.0f },
+		glm::vec2{ 1.0f, 1.0f }
+	};
+	Shader quadShader = Shader(R"(shaders/quad.vert)", R"(shaders/quad.frag)");
 
 	double time = glfwGetTime();
 	double prevTime = time;
@@ -114,12 +124,12 @@ GLFWwindow* InitWindow(int width, int height)
 
 #pragma region Debugging callback
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+void framebuffer_size_callback(GLFWwindow*, int width, int height)
 {
 	glViewport(0, 0, width, height);
 }
 
-void APIENTRY glDebugOutput(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam)
+void APIENTRY glDebugOutput(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei, const GLchar* message, const void*)
 {
 	// ignore non-significant error/warning codes
 	//if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
