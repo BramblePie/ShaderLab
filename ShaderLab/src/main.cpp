@@ -262,15 +262,6 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void APIENTRY glDebugOutput(GLenum source, GLenum type, GLuint id, GLenum severity,
 							GLsizei length, const GLchar* message, const void* userParam);
 
-bool processInput(GLFWwindow* window)
-{
-	bool gotInput = false;
-	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-		glfwSetWindowShouldClose(window, true);
-
-	return gotInput;
-}
-
 GLFWwindow* InitWindow(int width, int height)
 {
 	if (!glfwInit())
